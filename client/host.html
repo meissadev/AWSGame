@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AWS Quiz Live — Modérateur</title>
+  <link rel="stylesheet" href="css/host.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ── Création de session ── -->
+  <div id="screen-create" class="screen active">
+    <div class="create-card">
+      <div class="logo-wrap">
+        <div class="aws-badge large">AWS</div>
+        <h1>Quiz <span class="accent">Cloud Practitioner</span></h1>
+        <p class="subtitle">Espace modérateur — Créer une nouvelle session</p>
+      </div>
+
+      <form id="form-create" novalidate>
+        <div class="field-group">
+          <label for="input-qcount">Nombre de questions</label>
+          <div class="range-wrap">
+            <input type="range" id="input-qcount" min="5" max="50" value="15" step="5" />
+            <span id="qcount-display" class="range-value">15</span>
+          </div>
+          <p class="field-hint">Questions générées automatiquement depuis le programme AWS Cloud Practitioner (CLF-C02)</p>
+        </div>
+        <div class="field-group">
+          <label for="input-timelimit">Temps par question (secondes)</label>
+          <div class="range-wrap">
+            <input type="range" id="input-timelimit" min="10" max="60" value="10" step="5" />
+            <span id="timelimit-display" class="range-value">10</span>
+          </div>
+          <p class="field-hint">Temps accordé à chaque joueur pour répondre (10 s par défaut)</p>
+        </div>
+        <button type="submit" id="btn-create" class="btn-primary">Créer la session ✦</button>
+        <div id="create-error" class="alert-error hidden"></div>
+      </form>
+
+      <p class="player-link">Rejoindre en tant que joueur : <a href="/">Page joueur</a></p>
+    </div>
+  </div>
+
+  <!-- ── Salle d'attente ── -->
+  <div id="screen-lobby" class="screen">
+    <div class="lobby-layout">
+      <div class="lobby-left">
+        <div class="code-card">
+          <p class="code-label">Code d'accès</p>
+          <div id="session-code" class="session-code">——————</div>
+          <p class="code-hint">Les joueurs saisissent ce code sur <strong>leur smartphone</strong></p>
+          <div class="qr-placeholder" id="qr-placeholder">
+            <span>📱</span>
+            <p>Accès : <span id="join-url"></span></p>
+          </div>
+        </div>
+        <div class="quiz-info-card">
+          <div class="info-row">
+            <span class="info-label">Questions</span>
+            <span id="lobby-qcount" class="info-value">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Domaines AWS</span>
+            <span class="info-value">CLF-C02</span>
+          </div>
+        </div>
+        <button id="btn-start" class="btn-primary btn-start" disabled>
+          ▶ Démarrer le quiz
+        </button>
+        <p id="start-hint" class="start-hint">En attente de joueurs...</p>
+      </div>
+
+      <div class="lobby-right">
+        <div class="players-header">
+          <h2>Joueurs connectés</h2>
+          <span id="player-count-badge" class="count-badge">0</span>
+        </div>
+        <div id="players-list" class="players-list">
+          <p class="empty-state">Aucun joueur pour l'instant…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Question (vue modérateur) ── -->
+  <div id="screen-question" class="screen">
+    <div class="host-question-layout">
+      <div class="host-q-top">
+        <div class="q-meta-host">
+          <span id="h-q-domain" class="domain-badge"></span>
+          <span id="h-q-counter" class="q-counter"></span>
+        </div>
+        <div class="host-timer-wrap">
+          <div class="timer-bar-outer">
+            <div id="h-timer-bar" class="timer-bar"></div>
+          </div>
+          <div id="h-timer-number" class="timer-number big">30</div>
+        </div>
+        <div class="answers-progress">
+          <span id="h-answered-count">0</span>/<span id="h-total-players">0</span> réponses
+        </div>
+      </div>
+
+      <div class="host-q-body">
+        <p id="h-question-text" class="question-text host-q-text"></p>
+      </div>
+
+      <div id="h-choices-grid" class="choices-grid host-choices"></div>
+    </div>
+  </div>
+
+  <!-- ── Classement intermédiaire (vue modérateur) ── -->
+  <div id="screen-leaderboard" class="screen">
+    <div class="host-lb-layout">
+      <div class="host-lb-header">
+        <h2>🏆 Classement — Après question <span id="h-lb-qnum"></span></h2>
+      </div>
+      <!-- Rappel question + bonne réponse -->
+      <div id="h-question-recap" class="question-recap">
+        <p id="h-recap-question" class="recap-question"></p>
+        <div id="h-recap-answer" class="recap-answer">
+          <span class="recap-label">✅ Bonne réponse :</span>
+          <span id="h-recap-answer-text"></span>
+        </div>
+      </div>
+      <div id="h-leaderboard-list" class="leaderboard-list host-lb"></div>
+      <div class="host-lb-actions">
+        <button id="btn-next-question" class="btn-primary">Question suivante →</button>
+        <button id="btn-end-session" class="btn-danger">Terminer la session</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Podium final (vue modérateur) ── -->
+  <div id="screen-final" class="screen">
+    <div class="host-final-layout">
+      <div class="final-header">
+        <h2>🎊 Quiz terminé !</h2>
+        <p>Classement final</p>
+      </div>
+      <div id="h-podium-wrap" class="podium-wrap host-podium"></div>
+      <div id="h-final-leaderboard" class="leaderboard-list final-lb"></div>
+      <button id="btn-new-session" class="btn-secondary">Nouvelle session</button>
+    </div>
+  </div>
+
+  <!-- ── Overlay déconnexion ── -->
+  <div id="overlay-disconnected" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="overlay-icon">📡</div>
+      <h3>Connexion perdue</h3>
+      <p>Reconnexion en cours<span class="dots">...</span></p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/host.js"></script>
+</body>
+</html>

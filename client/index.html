@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AWS Quiz Live — Rejoindre</title>
+  <link rel="stylesheet" href="css/player.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ── Écran de connexion ── -->
+  <div id="screen-join" class="screen active">
+    <div class="join-card">
+      <div class="logo-wrap">
+        <div class="aws-badge">AWS</div>
+        <h1>Quiz <span class="accent">Cloud Practitioner</span></h1>
+        <p class="subtitle">Testez vos connaissances AWS en temps réel</p>
+      </div>
+
+      <form id="form-join" novalidate>
+        <div class="field-group">
+          <label for="input-pseudo">Votre pseudo</label>
+          <input id="input-pseudo" type="text" placeholder="Ex: CloudGuru" maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" />
+          <span class="field-error" id="err-pseudo"></span>
+        </div>
+        <div class="field-group">
+          <label for="input-code">Code de session</label>
+          <input id="input-code" type="text" placeholder="Ex: AB3X9Z" maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:0.15em;" />
+          <span class="field-error" id="err-code"></span>
+        </div>
+        <button type="submit" id="btn-join" class="btn-primary">Rejoindre →</button>
+        <div id="join-error" class="alert-error hidden"></div>
+      </form>
+
+      <p class="host-link">Vous êtes modérateur ? <a href="/host.html">Créer une session</a></p>
+    </div>
+  </div>
+
+  <!-- ── Salle d'attente joueur ── -->
+  <div id="screen-waiting" class="screen">
+    <div class="waiting-card">
+      <div class="waiting-icon">⏳</div>
+      <h2>Bienvenue, <span id="waiting-pseudo"></span> !</h2>
+      <p>En attente du modérateur pour démarrer...</p>
+      <div class="pulse-dot"></div>
+      <p class="waiting-info">La session commencera dès que le modérateur lancera le quiz.</p>
+      <div class="player-count-wrap">
+        <span id="waiting-player-count">0</span> joueur(s) connecté(s)
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Question ── -->
+  <div id="screen-question" class="screen">
+    <div class="question-header">
+      <div class="q-meta">
+        <span id="q-domain" class="domain-badge"></span>
+        <span id="q-counter" class="q-counter"></span>
+      </div>
+      <div class="timer-wrap">
+        <div class="timer-bar-outer">
+          <div id="timer-bar" class="timer-bar"></div>
+        </div>
+        <div id="timer-number" class="timer-number">30</div>
+      </div>
+    </div>
+
+    <div class="question-body">
+      <p id="question-text" class="question-text"></p>
+    </div>
+
+    <div id="choices-grid" class="choices-grid"></div>
+
+    <div id="answer-feedback" class="answer-feedback hidden">
+      <div id="feedback-icon" class="feedback-icon"></div>
+      <p id="feedback-text"></p>
+    </div>
+  </div>
+
+  <!-- ── Classement ── -->
+  <div id="screen-leaderboard" class="screen">
+    <div class="leaderboard-header">
+      <h2>🏆 Classement</h2>
+      <p id="lb-subtitle" class="lb-subtitle"></p>
+    </div>
+    <!-- Rappel question + bonne réponse -->
+    <div id="question-recap" class="question-recap">
+      <p id="recap-question" class="recap-question"></p>
+      <div id="recap-answer" class="recap-answer">
+        <span class="recap-label">✅ Bonne réponse :</span>
+        <span id="recap-answer-text"></span>
+      </div>
+    </div>
+    <div id="leaderboard-list" class="leaderboard-list"></div>
+    <div class="lb-footer">
+      <p id="lb-waiting-next">En attente de la prochaine question...</p>
+    </div>
+  </div>
+
+  <!-- ── Podium final ── -->
+  <div id="screen-final" class="screen">
+    <div class="final-header">
+      <h2>🎉 Quiz terminé !</h2>
+      <p class="final-subtitle">Résultats finaux</p>
+    </div>
+    <div id="podium-wrap" class="podium-wrap"></div>
+    <div id="final-leaderboard" class="leaderboard-list final-lb"></div>
+    <button id="btn-play-again" class="btn-secondary">Rejouer</button>
+  </div>
+
+  <!-- ── Overlay déconnexion ── -->
+  <div id="overlay-disconnected" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="overlay-icon">📡</div>
+      <h3>Connexion perdue</h3>
+      <p>Reconnexion en cours<span class="dots">...</span></p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/player.js"></script>
+</body>
+</html>
