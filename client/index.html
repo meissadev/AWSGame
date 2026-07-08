@@ -43,6 +43,8 @@
     <div class="waiting-card">
       <div class="waiting-icon">⏳</div>
       <h2>Bienvenue, <span id="waiting-pseudo"></span> !</h2>
+      <div id="waiting-mode-badge" class="mode-tag"></div>
+      <p id="waiting-mode-info" class="waiting-info" style="font-size:12px;margin-top:4px;"></p>
       <p>En attente du modérateur pour démarrer...</p>
       <div class="pulse-dot"></div>
       <p class="waiting-info">La session commencera dès que le modérateur lancera le quiz.</p>
@@ -99,6 +101,29 @@
     </div>
   </div>
 
+  <!-- ── Éliminé (joueur) ── -->
+  <div id="screen-eliminated" class="screen">
+    <div class="eliminated-card">
+      <div class="eliminated-icon">💀</div>
+      <h2>Vous êtes éliminé !</h2>
+      <p id="elim-score-text" class="elim-score"></p>
+      <p class="elim-info">Vous pouvez suivre la suite du tournoi en spectateur.</p>
+      <div id="elim-leaderboard" class="leaderboard-list elim-lb"></div>
+    </div>
+  </div>
+
+  <!-- ── Fin de phase (joueur survivant) ── -->
+  <div id="screen-phase-end" class="screen">
+    <div class="phase-end-player-card">
+      <div class="phase-end-icon">🎯</div>
+      <h2>Phase <span id="p-phase-num"></span> terminée !</h2>
+      <p id="p-phase-msg" class="phase-msg"></p>
+      <div id="p-eliminated-list" class="eliminated-list-small"></div>
+      <div class="pulse-dot"></div>
+      <p class="waiting-info">En attente du modérateur pour la phase suivante...</p>
+    </div>
+  </div>
+
   <!-- ── Podium final ── -->
   <div id="screen-final" class="screen">
     <div class="final-header">
@@ -107,7 +132,17 @@
     </div>
     <div id="podium-wrap" class="podium-wrap"></div>
     <div id="final-leaderboard" class="leaderboard-list final-lb"></div>
+    <button id="btn-show-recap" class="btn-secondary">📋 Voir le récapitulatif</button>
     <button id="btn-play-again" class="btn-secondary">Rejouer</button>
+  </div>
+
+  <!-- ── Récapitulatif Q/R ── -->
+  <div id="screen-recap" class="screen">
+    <div class="recap-screen-header">
+      <h2>📋 Récapitulatif des questions</h2>
+    </div>
+    <div id="recap-list" class="recap-list"></div>
+    <button id="btn-back-final" class="btn-secondary">← Retour au classement</button>
   </div>
 
   <!-- ── Overlay déconnexion ── -->
@@ -118,6 +153,22 @@
       <p>Reconnexion en cours<span class="dots">...</span></p>
     </div>
   </div>
+
+  <!-- ── Overlay confirmation abandon ── -->
+  <div id="overlay-quit" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="overlay-icon">🚪</div>
+      <h3>Quitter la session ?</h3>
+      <p>Vous serez retiré de la partie et votre score sera perdu.</p>
+      <div class="overlay-actions">
+        <button id="btn-quit-confirm" class="btn-danger-solid">Oui, quitter</button>
+        <button id="btn-quit-cancel" class="btn-secondary-small">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bouton quitter flottant ── -->
+  <button id="btn-quit-floating" class="btn-quit-floating hidden" title="Quitter la session">✕ Quitter</button>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="js/player.js"></script>

@@ -20,14 +20,60 @@
       </div>
 
       <form id="form-create" novalidate>
+        <!-- ── Sélecteur de mode ── -->
         <div class="field-group">
-          <label for="input-qcount">Nombre de questions</label>
-          <div class="range-wrap">
-            <input type="range" id="input-qcount" min="5" max="50" value="15" step="5" />
-            <span id="qcount-display" class="range-value">15</span>
+          <label>Mode de jeu</label>
+          <div class="mode-selector">
+            <button type="button" class="mode-btn active" data-mode="classic">
+              <span class="mode-icon">🎯</span>
+              <span class="mode-name">Classique</span>
+              <span class="mode-desc">Quiz standard, tous les joueurs</span>
+            </button>
+            <button type="button" class="mode-btn" data-mode="faceoff">
+              <span class="mode-icon">⚔️</span>
+              <span class="mode-name">Duel</span>
+              <span class="mode-desc">2 joueurs face à face</span>
+            </button>
+            <button type="button" class="mode-btn" data-mode="tournament">
+              <span class="mode-icon">🏆</span>
+              <span class="mode-name">Tournoi</span>
+              <span class="mode-desc">Élimination par phases</span>
+            </button>
           </div>
-          <p class="field-hint">Questions générées automatiquement depuis le programme AWS Cloud Practitioner (CLF-C02)</p>
+          <input type="hidden" id="input-mode" value="classic" />
         </div>
+
+        <!-- ── Nombre de questions (classic + faceoff) ── -->
+        <div id="classic-options">
+          <div class="field-group">
+            <label for="input-qcount">Nombre de questions</label>
+            <div class="range-wrap">
+              <input type="range" id="input-qcount" min="5" max="50" value="15" step="5" />
+              <span id="qcount-display" class="range-value">15</span>
+            </div>
+            <p class="field-hint">Questions générées automatiquement depuis le programme AWS Cloud Practitioner (CLF-C02)</p>
+          </div>
+        </div>
+
+        <!-- ── Options tournoi ── -->
+        <div id="tournament-options" style="display:none;">
+          <div class="field-group">
+            <label for="input-phases">Nombre de phases d'élimination</label>
+            <div class="range-wrap">
+              <input type="range" id="input-phases" min="2" max="5" value="3" step="1" />
+              <span id="phases-display" class="range-value">3</span>
+            </div>
+            <p class="field-hint">Ex : 3 phases avec 8 joueurs → 4 éliminés → 2 éliminés → 1 vainqueur</p>
+          </div>
+          <div class="field-group">
+            <label for="input-qperphase">Questions par phase</label>
+            <div class="range-wrap">
+              <input type="range" id="input-qperphase" min="3" max="15" value="5" step="1" />
+              <span id="qperphase-display" class="range-value">5</span>
+            </div>
+          </div>
+        </div>
+
         <div class="field-group">
           <label for="input-timelimit">Temps par question (secondes)</label>
           <div class="range-wrap">
@@ -58,6 +104,10 @@
           </div>
         </div>
         <div class="quiz-info-card">
+          <div class="info-row">
+            <span class="info-label">Mode</span>
+            <span id="lobby-mode-badge" class="info-value">—</span>
+          </div>
           <div class="info-row">
             <span class="info-label">Questions</span>
             <span id="lobby-qcount" class="info-value">—</span>
@@ -134,6 +184,22 @@
     </div>
   </div>
 
+  <!-- ── Fin de phase tournoi (vue modérateur) ── -->
+  <div id="screen-phase-end" class="screen">
+    <div class="phase-end-layout">
+      <div class="phase-end-header">
+        <div class="phase-badge">Phase <span id="h-phase-num"></span> / <span id="h-phase-total"></span> terminée</div>
+        <h2>⚡ Élimination !</h2>
+      </div>
+      <div id="h-eliminated-list" class="eliminated-list"></div>
+      <div class="phase-survivors-wrap">
+        <h3>🟢 Survivants — Phase <span id="h-next-phase-num"></span></h3>
+        <div id="h-survivors-list" class="survivors-list"></div>
+      </div>
+      <button id="btn-next-phase" class="btn-primary btn-start">▶ Démarrer la phase suivante</button>
+    </div>
+  </div>
+
   <!-- ── Podium final (vue modérateur) ── -->
   <div id="screen-final" class="screen">
     <div class="host-final-layout">
@@ -143,7 +209,22 @@
       </div>
       <div id="h-podium-wrap" class="podium-wrap host-podium"></div>
       <div id="h-final-leaderboard" class="leaderboard-list final-lb"></div>
-      <button id="btn-new-session" class="btn-secondary">Nouvelle session</button>
+      <div class="host-final-actions">
+        <button id="btn-show-recap" class="btn-secondary">📋 Récapitulatif</button>
+        <button id="btn-new-session" class="btn-secondary">Nouvelle session</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Récapitulatif Q/R (vue modérateur) ── -->
+  <div id="screen-recap" class="screen">
+    <div class="recap-screen-header">
+      <h2>📋 Récapitulatif des questions</h2>
+    </div>
+    <div id="h-recap-list" class="recap-list host-recap-list"></div>
+    <div class="host-final-actions">
+      <button id="btn-back-final" class="btn-secondary">← Retour au classement</button>
+      <button id="btn-new-session-2" class="btn-secondary">Nouvelle session</button>
     </div>
   </div>
 

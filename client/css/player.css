@@ -447,3 +447,206 @@ html, body {
   .choices-grid { gap: 12px; padding: 12px 16px 20px; }
   .choice-btn { min-height: 80px; font-size: 15px; }
 }
+
+/* ─── Écran récapitulatif ──────────────────────────────────────────────── */
+#screen-recap.active {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 16px 20px;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 100vh;
+}
+
+.recap-screen-header {
+  text-align: center;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+.recap-screen-header h2 { font-size: 20px; font-weight: 800; }
+
+.recap-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+.recap-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+
+.recap-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.recap-card-num {
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--aws-orange);
+  color: #000;
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.recap-card-question {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+.recap-card-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.recap-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg);
+  line-height: 1.3;
+}
+.recap-choice.recap-correct {
+  background: rgba(46, 204, 113, 0.15);
+  border: 1px solid var(--success);
+  color: var(--text);
+  font-weight: 600;
+}
+.recap-choice-letter {
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.host-final-actions { display: flex; gap: 12px; justify-content: center; margin-top: 16px; flex-wrap: wrap; flex-shrink: 0; }
+
+/* ─── Mode tag (salle d'attente) ───────────────────────────────────────── */
+.mode-tag {
+  display: inline-block;
+  background: rgba(255,153,0,0.15);
+  color: var(--aws-orange);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: 20px;
+  margin-top: 6px;
+}
+
+/* ─── Écran éliminé ────────────────────────────────────────────────────── */
+#screen-eliminated.active {
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 100vh;
+}
+.eliminated-card {
+  text-align: center;
+  padding: 20px 0 12px;
+}
+.eliminated-icon { font-size: 56px; margin-bottom: 12px; }
+.eliminated-card h2 { font-size: 26px; font-weight: 800; color: var(--danger); margin-bottom: 6px; }
+.elim-score { font-size: 16px; color: var(--aws-orange); font-weight: 700; margin-bottom: 6px; }
+.elim-info { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+.elim-lb { max-height: 300px; overflow-y: auto; }
+
+/* ─── Fin de phase (joueur survivant) ──────────────────────────────────── */
+#screen-phase-end.active {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+.phase-end-player-card { text-align: center; max-width: 380px; width: 100%; }
+.phase-end-icon { font-size: 52px; margin-bottom: 12px; }
+.phase-end-player-card h2 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+.phase-msg { font-size: 15px; color: var(--success); font-weight: 600; margin-bottom: 14px; }
+
+.eliminated-list-small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.elim-tag {
+  background: rgba(231,76,60,0.15);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+/* ─── Bouton Quitter flottant ──────────────────────────────────────────── */
+.btn-quit-floating {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 500;
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-quit-floating:hover { background: var(--danger); color: #fff; }
+
+/* ─── Overlay actions ──────────────────────────────────────────────────── */
+.overlay-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+.btn-danger-solid {
+  padding: 12px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-danger-solid:hover { opacity: 0.85; }
+.btn-secondary-small {
+  padding: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.btn-secondary-small:hover { color: var(--text); border-color: var(--text-muted); }

@@ -1,14 +1,9 @@
 /* ─── État global ─────────────────────────────────────────────────────── */
 const state = {
-  pseudo: '',
-  code: '',
-  score: 0,
-  currentQuestion: null,
-  timeLimit: 0,
-  timerInterval: null,
-  answered: false,
-  reconnectDelay: 1000,
-  reconnectTimeout: null,
+  pseudo: '', code: '', score: 0, currentQuestion: null,
+  timeLimit: 0, timerInterval: null, answered: false,
+  reconnectDelay: 1000, reconnectTimeout: null,
+  history: [], eliminated: false
 };
 
 let socket = null;
@@ -77,6 +72,14 @@ function initSocket() {
       setText('waiting-pseudo', data.pseudo);
       const count = data.players ? data.players.filter(p => p.connected).length : 1;
       setText('waiting-player-count', count);
+      // Badge mode
+      const modeLabels = { classic: '🎯 Classique', faceoff: '⚔️ Duel', tournament: '🏆 Tournoi' };
+      const mbEl = document.getElementById('waiting-mode-badge');
+      if (mbEl) mbEl.textContent = modeLabels[data.mode] || '';
+      if (data.mode === 'tournament' && data.tournament) {
+        const infoEl = document.getElementById('waiting-mode-info');
+        if (infoEl) infoEl.textContent = `Tournoi ${data.tournament.phases} phases — ${data.tournament.questionsPerPhase} questions/phase`;
+      }
       showScreen('screen-waiting');
     } else if (data.state === 'active') {
       handleQuestionStart(data, data.remaining);
@@ -100,7 +103,6 @@ function initSocket() {
 
   socket.on('player:answer_confirmed', ({ choiceIndex }) => {
     state.answered = true;
-    // Feedback visuel immédiat
     const btns = document.querySelectorAll('#choices-grid .choice-btn');
     btns.forEach((btn, i) => {
       btn.disabled = true;
@@ -112,48 +114,80 @@ function initSocket() {
     document.getElementById('feedback-icon').style.color = '#2ecc71';
   });
 
+  // question:result et tournament events sont définis plus bas
+
+  socket.on('session:end', ({ leaderboard, history }) => {
+    clearTimerInterval();
+    handleFinal(leaderboard, history);
+  });
+
+  // ── Mode face-à-face : score adversaire en temps réel ──────────────────
   socket.on('question:result', (data) => {
     clearTimerInterval();
-    // Afficher les bonnes/mauvaises réponses
     const btns = document.querySelectorAll('#choices-grid .choice-btn');
     btns.forEach((btn, i) => {
       btn.disabled = true;
-      if (i === data.correctIndex) {
-        btn.classList.remove('selected');
-        btn.classList.add('correct');
-      } else if (btn.classList.contains('selected')) {
-        btn.classList.add('incorrect');
-      }
+      if (i === data.correctIndex) { btn.classList.remove('selected'); btn.classList.add('correct'); }
+      else if (btn.classList.contains('selected')) btn.classList.add('incorrect');
     });
-
-    // Afficher les points gagnés
     if (data.pointsEarned !== undefined) {
       show('answer-feedback');
       if (data.pointsEarned > 0) {
         setText('feedback-icon', '🎯');
-        setText('feedback-text', `+${data.pointsEarned} points ! Score total : ${data.yourScore}`);
+        let txt = `+${data.pointsEarned} pts ! Total : ${data.yourScore}`;
+        if (data.opponent) txt += ` | ${escapeHtml(data.opponent.pseudo)} : ${data.opponent.score}`;
+        setText('feedback-text', txt);
         document.getElementById('feedback-icon').style.color = '#f39c12';
       } else {
-        if (!state.answered) {
-          setText('feedback-icon', '⏱');
-          setText('feedback-text', 'Temps écoulé ! 0 point.');
-        } else {
-          setText('feedback-icon', '✗');
-          setText('feedback-text', 'Mauvaise réponse. 0 point.');
-        }
+        setText('feedback-icon', state.answered ? '✗' : '⏱');
+        setText('feedback-text', state.answered ? 'Mauvaise réponse. 0 pt.' : 'Temps écoulé ! 0 pt.');
+        document.getElementById('feedback-icon').style.color = '#e74c3c';
       }
     }
-
-    // Transition vers le classement après 2s
     setTimeout(() => {
       handleLeaderboard(data.leaderboard, data.isLast, false, data.questionText, data.correctText);
     }, 2000);
   });
 
-  socket.on('session:end', ({ leaderboard }) => {
+  // ── Tournoi : éliminé ──────────────────────────────────────────────────
+  socket.on('player:eliminated', (data) => {
     clearTimerInterval();
-    handleFinal(leaderboard);
-  });}
+    state.eliminated = true;
+    renderEliminatedScreen(data);
+    showScreen('screen-eliminated');
+  });
+
+  // ── Tournoi : fin de phase (survivants) ────────────────────────────────
+  socket.on('tournament:phase_end', (data) => {
+    if (state.eliminated) return; // les éliminés ont déjà leur écran
+    setText('p-phase-num', data.phase);
+    const elimSmall = document.getElementById('p-eliminated-list');
+    if (elimSmall) {
+      elimSmall.innerHTML = data.eliminated.map(e =>
+        `<span class="elim-tag">💀 ${escapeHtml(e.pseudo)}</span>`
+      ).join('');
+    }
+    const msg = document.getElementById('p-phase-msg');
+    if (msg) msg.textContent = `Vous êtes qualifié pour la phase ${data.nextPhase} !`;
+    showScreen('screen-phase-end');
+  });
+
+  // ── Abandon confirmé par le serveur ────────────────────────────────────
+  socket.on('player:quit_confirmed', () => {
+    clearTimerInterval();
+    state.pseudo = '';
+    state.code = '';
+    state.score = 0;
+    state.eliminated = false;
+    const floatBtn = document.getElementById('btn-quit-floating');
+    if (floatBtn) floatBtn.classList.add('hidden');
+    document.getElementById('input-pseudo').value = '';
+    document.getElementById('input-code').value = '';
+    document.getElementById('btn-join').disabled = false;
+    showScreen('screen-join');
+  });
+
+}
 
 function scheduleReconnect() {
   clearTimeout(state.reconnectTimeout);
@@ -321,16 +355,40 @@ function handleLeaderboard(leaderboard, isLast, isFinal, questionText, correctTe
   showScreen('screen-leaderboard');
 }
 
-/* ─── Final ───────────────────────────────────────────────────────────── */
-function handleFinal(leaderboard) {
+function renderEliminatedScreen(data) {
+  const scoreText = document.getElementById('elim-score-text');
+  if (scoreText) scoreText.textContent = `Score final : ${(data.score || 0).toLocaleString()} pts`;
+  const lb = document.getElementById('elim-leaderboard');
+  if (!lb) return;
+  lb.innerHTML = '';
+  (data.leaderboard || []).forEach(item => {
+    const div = document.createElement('div');
+    div.className = `lb-item${item.pseudo === state.pseudo ? ' me' : ''}${item.rank <= 3 ? ` rank-${item.rank}` : ''}`;
+    const rankEl = document.createElement('div');
+    rankEl.className = `lb-rank${item.rank <= 3 ? ` rank-${item.rank}` : ''}`;
+    if (item.rank > 3) rankEl.textContent = item.rank;
+    const pseudoEl = document.createElement('div');
+    pseudoEl.className = 'lb-pseudo';
+    pseudoEl.textContent = item.pseudo + (item.eliminated ? ' 💀' : '');
+    const scoreEl = document.createElement('div');
+    scoreEl.className = 'lb-score';
+    scoreEl.textContent = item.score.toLocaleString();
+    div.appendChild(rankEl); div.appendChild(pseudoEl); div.appendChild(scoreEl);
+    lb.appendChild(div);
+  });
+}
+
+
+function handleFinal(leaderboard, history) {
   clearTimerInterval();
+  state.history = history || [];
 
   // Podium
   const podium = document.getElementById('podium-wrap');
   podium.innerHTML = '';
   const medals = ['🥇', '🥈', '🥉'];
   const classes = ['p1', 'p2', 'p3'];
-  const podiumOrder = [1, 0, 2]; // Affichage : 2e, 1er, 3e
+  const podiumOrder = [1, 0, 2];
 
   podiumOrder.forEach(realIdx => {
     const p = leaderboard[realIdx];
@@ -376,7 +434,71 @@ function handleFinal(leaderboard) {
   showScreen('screen-final');
 }
 
-/* ─── Formulaire de connexion ─────────────────────────────────────────── */
+function renderRecap(history) {
+  const list = document.getElementById('recap-list');
+  list.innerHTML = '';
+  (history || []).forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'recap-card';
+    const letters = ['A', 'B', 'C', 'D'];
+    const choicesHtml = item.choices.map((c, i) => {
+      const isCorrect = i === item.correctIndex;
+      return `<div class="recap-choice${isCorrect ? ' recap-correct' : ''}">
+        <span class="recap-choice-letter">${letters[i]}</span>
+        ${escapeHtml(c)}
+        ${isCorrect ? ' ✅' : ''}
+      </div>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="recap-card-header">
+        <span class="recap-card-num">Q${item.number}</span>
+        <span class="domain-badge">${escapeHtml(item.domain)}</span>
+      </div>
+      <p class="recap-card-question">${escapeHtml(item.questionText)}</p>
+      <div class="recap-card-choices">${choicesHtml}</div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+/* ─── Bouton Quitter flottant ─────────────────────────────────────────── */
+const QUIT_VISIBLE_SCREENS = ['screen-waiting', 'screen-question', 'screen-leaderboard', 'screen-phase-end', 'screen-eliminated'];
+
+function updateQuitButton(screenId) {
+  const btn = document.getElementById('btn-quit-floating');
+  if (!btn) return;
+  if (QUIT_VISIBLE_SCREENS.includes(screenId) && state.pseudo) {
+    btn.classList.remove('hidden');
+  } else {
+    btn.classList.add('hidden');
+  }
+}
+
+// Patch showScreen pour mettre à jour le bouton quitter
+const _origShowScreen = showScreen;
+window.showScreen = function(id) {
+  _origShowScreen(id);
+  updateQuitButton(id);
+};
+
+document.getElementById('btn-quit-floating').addEventListener('click', () => {
+  const overlay = document.getElementById('overlay-quit');
+  if (overlay) overlay.classList.remove('hidden');
+});
+
+document.getElementById('btn-quit-cancel').addEventListener('click', () => {
+  const overlay = document.getElementById('overlay-quit');
+  if (overlay) overlay.classList.add('hidden');
+});
+
+document.getElementById('btn-quit-confirm').addEventListener('click', () => {
+  const overlay = document.getElementById('overlay-quit');
+  if (overlay) overlay.classList.add('hidden');
+  document.getElementById('btn-quit-floating').classList.add('hidden');
+  if (socket) socket.emit('player:quit');
+});
+
+
 document.getElementById('form-join').addEventListener('submit', (e) => {
   e.preventDefault();
 
@@ -420,10 +542,17 @@ document.getElementById('form-join').addEventListener('submit', (e) => {
   }
 });
 
+document.getElementById('btn-show-recap').addEventListener('click', () => {
+  renderRecap(state.history);
+  showScreen('screen-recap');
+});
+
+document.getElementById('btn-back-final').addEventListener('click', () => {
+  showScreen('screen-final');
+});
+
 document.getElementById('btn-play-again').addEventListener('click', () => {
-  state.pseudo = '';
-  state.code = '';
-  state.score = 0;
+  state.pseudo = ''; state.code = ''; state.score = 0; state.eliminated = false;
   showScreen('screen-join');
   document.getElementById('input-pseudo').value = '';
   document.getElementById('input-code').value = '';

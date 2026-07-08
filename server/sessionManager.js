@@ -45,23 +45,40 @@ function generateCode() {
 /**
  * Crée une nouvelle session.
  * @param {number} questionCount - Nombre de questions à générer
- * @returns {object|null} La session créée, ou null si le code n'a pas pu être généré
+ * @param {number} timeLimit - Temps limite par question en secondes
+ * @param {string} mode - 'classic' | 'faceoff' | 'tournament'
+ * @param {object} tournamentConfig - { phases: number, questionsPerPhase: number } (mode tournament)
  */
-function createSession(questionCount = 15, timeLimit = 10) {
+function createSession(questionCount = 15, timeLimit = 10, mode = 'classic', tournamentConfig = null) {
   const code = generateCode();
   if (!code) return null;
 
-  const questions = generateQuiz(questionCount, timeLimit);
+  // En mode tournoi, on génère assez de questions pour toutes les phases
+  const totalQuestions = mode === 'tournament' && tournamentConfig
+    ? tournamentConfig.phases * tournamentConfig.questionsPerPhase
+    : questionCount;
+
+  const questions = generateQuiz(Math.min(totalQuestions, 50), timeLimit);
 
   const session = {
     code,
-    state: 'waiting',       // waiting | active | leaderboard | finished
+    mode,                   // 'classic' | 'faceoff' | 'tournament'
+    state: 'waiting',       // waiting | active | leaderboard | phase_end | finished
     questions,
     currentQuestionIndex: -1,
     players: new Map(),     // Map<pseudo_lower, PlayerState>
     timerRef: null,
     questionStartTime: null,
-    lastActivity: Date.now()
+    lastActivity: Date.now(),
+    history: [],
+    // Tournoi
+    tournament: mode === 'tournament' ? {
+      phases: tournamentConfig?.phases || 3,
+      questionsPerPhase: tournamentConfig?.questionsPerPhase || 5,
+      currentPhase: 1,
+      eliminatedPlayers: [],    // pseudos éliminés
+      activePlayers: new Set()  // pseudos encore en jeu (rempli au démarrage)
+    } : null
   };
 
   sessions.set(code, session);
@@ -83,29 +100,31 @@ function joinSession(code, pseudo) {
   const session = getSession(code);
   if (!session) return { success: false, error: 'session_not_found' };
   if (session.state === 'finished') return { success: false, error: 'session_finished' };
-  if (session.state === 'active' || session.state === 'leaderboard') {
-    // Reconnexion autorisée si le joueur existait déjà
+  if (session.state === 'active' || session.state === 'leaderboard' || session.state === 'phase_end') {
     const existing = session.players.get(pseudo.toLowerCase());
     if (existing) {
       existing.connected = true;
-      existing.socketId = null; // sera mis à jour par le serveur socket
+      existing.socketId = null;
       session.lastActivity = Date.now();
       return { success: true, player: existing, isReconnect: true };
     }
     return { success: false, error: 'session_started' };
   }
 
-  // Salle d'attente : nouveau joueur ou reconnexion
+  // Salle d'attente
   const pseudoLower = pseudo.toLowerCase();
   const existing = session.players.get(pseudoLower);
-  if (existing && existing.connected) {
-    return { success: false, error: 'pseudo_taken' };
-  }
+  if (existing && existing.connected) return { success: false, error: 'pseudo_taken' };
   if (existing && !existing.connected) {
-    // Reconnexion en salle d'attente
     existing.connected = true;
     existing.socketId = null;
     return { success: true, player: existing, isReconnect: true };
+  }
+
+  // Limite pour le mode face-à-face
+  if (session.mode === 'faceoff') {
+    const connected = Array.from(session.players.values()).filter(p => p.connected).length;
+    if (connected >= 2) return { success: false, error: 'faceoff_full' };
   }
 
   const player = {
@@ -117,7 +136,9 @@ function joinSession(code, pseudo) {
     socketId: null,
     answeredCurrentQuestion: false,
     lastAnswerTime: null,
-    disconnectedAt: null
+    lastResponseTimeMs: null,
+    disconnectedAt: null,
+    eliminated: false
   };
   session.players.set(pseudoLower, player);
   session.lastActivity = Date.now();
@@ -136,13 +157,18 @@ function getPlayerList(session) {
 
 /**
  * Calcule et retourne le classement trié.
+ * @param {boolean} activeOnly - Si true, n'inclut que les joueurs non éliminés
  */
-function getLeaderboard(session) {
-  const players = Array.from(session.players.values())
+function getLeaderboard(session, activeOnly = false) {
+  let allPlayers = Array.from(session.players.values());
+  if (activeOnly && session.tournament) {
+    allPlayers = allPlayers.filter(p => !p.eliminated);
+  }
+  const players = allPlayers
     .map(p => ({
       pseudo: p.pseudo,
       score: p.score,
-      // Temps de réponse pour la dernière question (null = pas répondu / déconnecté)
+      eliminated: p.eliminated || false,
       responseTimeMs: p.answeredCurrentQuestion ? (p.lastResponseTimeMs ?? null) : null
     }))
     .sort((a, b) => {
@@ -150,7 +176,6 @@ function getLeaderboard(session) {
       return a.pseudo.localeCompare(b.pseudo);
     });
 
-  // Calcul des rangs avec gestion des ex-æquo
   let rank = 1;
   players.forEach((p, i) => {
     if (i > 0 && players[i - 1].score === p.score) {
@@ -162,6 +187,44 @@ function getLeaderboard(session) {
   });
 
   return players;
+}
+
+/**
+ * Pour le mode tournoi : calcule combien de joueurs éliminer à la fin d'une phase.
+ * Retourne la liste des pseudos éliminés.
+ */
+function eliminateForTournament(session) {
+  const t = session.tournament;
+  if (!t) return [];
+
+  const activePlayers = Array.from(session.players.values()).filter(p => !p.eliminated && p.connected);
+  const totalActive = activePlayers.length;
+
+  // Nombre à éliminer : on garde 2 pour la finale, sinon on divise par 2 environ
+  const phasesLeft = t.phases - t.currentPhase;
+  let toKeep;
+  if (phasesLeft <= 0) {
+    // Dernière phase : garder seulement le vainqueur
+    toKeep = 1;
+  } else {
+    // Garder la moitié (arrondi supérieur), minimum 2
+    toKeep = Math.max(2, Math.ceil(totalActive / 2));
+  }
+
+  const toEliminate = Math.max(0, totalActive - toKeep);
+  if (toEliminate === 0) return [];
+
+  // Trier par score croissant (les moins bons sont éliminés)
+  const sorted = [...activePlayers].sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    return b.pseudo.localeCompare(a.pseudo);
+  });
+
+  const eliminated = sorted.slice(0, toEliminate);
+  eliminated.forEach(p => { p.eliminated = true; });
+  t.eliminatedPlayers.push(...eliminated.map(p => p.pseudo));
+
+  return eliminated.map(p => ({ pseudo: p.pseudo, score: p.score }));
 }
 
 /**
@@ -213,11 +276,11 @@ function submitAnswer(code, pseudo, choiceIndex, receivedAt) {
 }
 
 /**
- * Vérifie si tous les joueurs connectés ont répondu.
+ * Vérifie si tous les joueurs ACTIFS (non éliminés) connectés ont répondu.
  */
 function allPlayersAnswered(session) {
   for (const player of session.players.values()) {
-    if (player.connected && !player.answeredCurrentQuestion) return false;
+    if (player.connected && !player.eliminated && !player.answeredCurrentQuestion) return false;
   }
   return true;
 }
@@ -255,6 +318,7 @@ module.exports = {
   joinSession,
   getPlayerList,
   getLeaderboard,
+  eliminateForTournament,
   submitAnswer,
   allPlayersAnswered,
   resetAnswers,
