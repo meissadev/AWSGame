@@ -13313,25 +13313,98 @@ const ALL_QUESTIONS = [
 ];
 
 /**
- * Retourne N questions aléatoires mélangées depuis la banque complète.
+ * Retourne N questions aléatoires depuis la banque, équilibrées par domaine
+ * selon les proportions officielles CLF-C02, avec mélange crypto-qualité
+ * des choix pour éviter les biais de position.
+ *
  * @param {number} count - Nombre de questions
- * @param {number|null} timeLimitOverride - Remplace le timeLimit de chaque question si fourni
+ * @param {number|null} timeLimitOverride - Remplace le timeLimit si fourni
  */
 function generateQuiz(count = 15, timeLimitOverride = null) {
-  const shuffled = [...ALL_QUESTIONS];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  // ── 1. Grouper par domaine ──────────────────────────────────────────────
+  const byDomain = {};
+  for (const q of ALL_QUESTIONS) {
+    if (!byDomain[q.domain]) byDomain[q.domain] = [];
+    byDomain[q.domain].push(q);
   }
-  const selected = shuffled.slice(0, Math.min(count, shuffled.length));
 
-  return selected.map((q) => {
+  // Poids cibles CLF-C02 (en %)
+  const TARGET_WEIGHTS = {
+    'Cloud Concepts':       0.24,
+    'Security & Compliance':0.30,
+    'Cloud Technology':     0.34,
+    'Billing & Pricing':    0.12
+  };
+
+  // ── 2. Calculer la répartition cible ───────────────────────────────────
+  const domains = Object.keys(TARGET_WEIGHTS);
+  // Quota entier par domaine
+  const quotas = {};
+  let assigned = 0;
+  for (const d of domains) {
+    quotas[d] = Math.floor(count * TARGET_WEIGHTS[d]);
+    assigned += quotas[d];
+  }
+  // Distribuer les questions restantes aux domaines les plus proches de leur quota flottant
+  const remainders = domains
+    .map(d => ({ d, rem: count * TARGET_WEIGHTS[d] - quotas[d] }))
+    .sort((a, b) => b.rem - a.rem);
+  for (let i = 0; assigned < count; i++, assigned++) {
+    quotas[remainders[i % remainders.length].d]++;
+  }
+
+  // ── 3. Piocher aléatoirement dans chaque domaine ────────────────────────
+  const selected = [];
+  for (const d of domains) {
+    const pool = byDomain[d] || [];
+    const need = Math.min(quotas[d], pool.length);
+    // Fisher-Yates sur une copie du pool
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = cryptoRandInt(i + 1);
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    selected.push(...shuffled.slice(0, need));
+  }
+
+  // Si un domaine manque de questions, compléter avec d'autres
+  if (selected.length < count) {
+    const usedIds = new Set(selected.map(q => q.id));
+    const extras = ALL_QUESTIONS.filter(q => !usedIds.has(q.id));
+    for (let i = extras.length - 1; i > 0; i--) {
+      const j = cryptoRandInt(i + 1);
+      [extras[i], extras[j]] = [extras[j], extras[i]];
+    }
+    selected.push(...extras.slice(0, count - selected.length));
+  }
+
+  // ── 4. Mélanger l'ordre des questions ───────────────────────────────────
+  for (let i = selected.length - 1; i > 0; i--) {
+    const j = cryptoRandInt(i + 1);
+    [selected[i], selected[j]] = [selected[j], selected[i]];
+  }
+
+  // ── 5. Mélanger les choix de chaque question avec biais anti-longueur ──
+  return selected.map(q => {
     const correctText = q.choices[q.answer];
+
+    // Copie et mélange Fisher-Yates crypto des choix
     const shuffledChoices = [...q.choices];
     for (let i = shuffledChoices.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = cryptoRandInt(i + 1);
       [shuffledChoices[i], shuffledChoices[j]] = [shuffledChoices[j], shuffledChoices[i]];
     }
+
+    // ── Placement uniforme de la bonne réponse ─────────────────────────
+    // On force la bonne réponse sur une position cible tirée uniformément
+    // parmi A(0), B(1), C(2), D(3) — élimine tout biais de position
+    const currentPos = shuffledChoices.indexOf(correctText);
+    const targetPos = cryptoRandInt(shuffledChoices.length);
+    if (currentPos !== targetPos) {
+      [shuffledChoices[currentPos], shuffledChoices[targetPos]] =
+        [shuffledChoices[targetPos], shuffledChoices[currentPos]];
+    }
+
     const newAnswerIndex = shuffledChoices.indexOf(correctText);
     return {
       id: q.id,
@@ -13342,6 +13415,14 @@ function generateQuiz(count = 15, timeLimitOverride = null) {
       timeLimit: timeLimitOverride !== null ? timeLimitOverride : q.timeLimit
     };
   });
+}
+
+/**
+ * Entier aléatoire uniforme dans [0, max[ sans biais de modulo.
+ * Pour max <= 2^32, Math.random() * max est suffisamment uniforme.
+ */
+function cryptoRandInt(max) {
+  return Math.floor(Math.random() * max);
 }
 
 module.exports = { generateQuiz, ALL_QUESTIONS };

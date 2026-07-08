@@ -94,10 +94,12 @@ function initSocket() {
   });
 
   socket.on('question:start', (data) => {
+    if (state.eliminated) return; // les éliminés ne jouent plus
     handleQuestionStart(data, null);
   });
 
   socket.on('timer:tick', ({ remaining }) => {
+    if (state.eliminated) return;
     updateTimer(remaining);
   });
 
@@ -123,6 +125,7 @@ function initSocket() {
 
   // ── Mode face-à-face : score adversaire en temps réel ──────────────────
   socket.on('question:result', (data) => {
+    if (state.eliminated) return; // les éliminés restent sur leur écran
     clearTimerInterval();
     const btns = document.querySelectorAll('#choices-grid .choice-btn');
     btns.forEach((btn, i) => {

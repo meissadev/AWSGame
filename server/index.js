@@ -325,7 +325,19 @@ io.on('connection', (socket) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 /**
- * Diffuse une question à tous les clients de la session.
+ * Envoie un événement uniquement aux joueurs NON éliminés et connectés.
+ */
+function emitToActivePlayers(session, event, payload) {
+  for (const player of session.players.values()) {
+    if (!player.eliminated && player.connected && player.socketId) {
+      const s = io.sockets.sockets.get(player.socketId);
+      if (s) s.emit(event, payload);
+    }
+  }
+}
+
+/**
+ * Diffuse une question à tous les clients actifs de la session.
  */
 function broadcastQuestion(session, index) {
   session.currentQuestionIndex = index;
@@ -334,7 +346,11 @@ function broadcastQuestion(session, index) {
   resetAnswers(session);
 
   const question = session.questions[index];
-  const isLast = index === session.questions.length - 1;
+  const t = session.tournament;
+  const isLastOfPhase = t
+    ? (index + 1) >= (t.currentPhase * t.questionsPerPhase)
+    : false;
+  const isLast = !t && (index === session.questions.length - 1);
 
   const payload = {
     questionIndex: index,
@@ -344,21 +360,22 @@ function broadcastQuestion(session, index) {
     timeLimit: question.timeLimit,
     domain: question.domain,
     startedAt: session.questionStartTime,
-    isLast
+    isLast: isLast || isLastOfPhase,
+    tournamentPhase: t ? t.currentPhase : null
   };
 
-  io.to(`session:${session.code}`).emit('question:start', payload);
-  // Le modérateur reçoit aussi l'index de la bonne réponse pour affichage
+  // N'envoyer qu'aux joueurs actifs (non éliminés)
+  emitToActivePlayers(session, 'question:start', payload);
+  // Le modérateur reçoit aussi l'index de la bonne réponse
   io.to(`host:${session.code}`).emit('question:start', { ...payload, correctIndex: question.answer });
 
-  // Timer côté serveur
+  // Timer côté serveur — uniquement aux joueurs actifs + modérateur
   let remaining = question.timeLimit;
   const tickInterval = setInterval(() => {
     remaining--;
-    io.to(`session:${session.code}`).emit('timer:tick', { remaining });
-    if (remaining <= 0) {
-      clearInterval(tickInterval);
-    }
+    emitToActivePlayers(session, 'timer:tick', { remaining });
+    io.to(`host:${session.code}`).emit('timer:tick', { remaining });
+    if (remaining <= 0) clearInterval(tickInterval);
   }, 1000);
 
   session.timerRef = setTimeout(() => {
@@ -366,7 +383,6 @@ function broadcastQuestion(session, index) {
     closeQuestion(session);
   }, question.timeLimit * 1000);
 
-  // Stocker tickInterval pour pouvoir l'annuler si on passe en force à la question suivante
   session.tickIntervalRef = tickInterval;
 }
 
